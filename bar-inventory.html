@@ -431,6 +431,7 @@
         <div class="stat-card"><div class="stat-label">Prodotti totali</div><div class="stat-value" id="statTot">—</div></div>
         <div class="stat-card"><div class="stat-label">Scorte critiche</div><div class="stat-value danger" id="statCrit">—</div></div>
         <div class="stat-card"><div class="stat-label">Scorte in esaur.</div><div class="stat-value warning" id="statLow">—</div></div>
+        <div class="stat-card"><div class="stat-label">In scadenza (4gg)</div><div class="stat-value warning" id="statScad">—</div></div>
         <div class="stat-card"><div class="stat-label">Categorie</div><div class="stat-value success" id="statCat">—</div></div>
       </div>
       <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:12px;color:var(--text2)">⚠️ PRODOTTI SOTTO SOGLIA</div>
@@ -461,12 +462,19 @@
           <option value="low">Solo basse</option>
           <option value="ok">Solo ok</option>
         </select>
+        <select class="filter-select" id="filterSettore" onchange="renderTabella()">
+          <option value="">Tutti i settori</option>
+          <option value="Dispensa">Dispensa</option>
+          <option value="Frigo">Frigo</option>
+          <option value="Cucina">Cucina</option>
+          <option value="Bar">Bar</option>
+        </select>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Nome</th><th>Categoria</th><th>Quantità</th><th>Min</th><th>Unità</th><th>Note</th><th>Azioni</th>
+              <th>Nome</th><th>Categoria</th><th>Settore</th><th>Quantità</th><th>Min</th><th>Unità</th><th>Scadenza</th><th>Note</th><th>Azioni</th>
             </tr>
           </thead>
           <tbody id="tabellaBody"></tbody>
@@ -492,11 +500,14 @@
     <div class="page" id="page-allerte">
       <div class="page-header">
         <div>
-          <div class="page-title">Allerte scorte</div>
-          <div class="page-sub">Prodotti da riordinare</div>
+          <div class="page-title">Allerte</div>
+          <div class="page-sub">Scorte basse e prodotti in scadenza</div>
         </div>
       </div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:12px;color:var(--text2)">📦 SCORTE BASSE</div>
       <div id="alerteList" class="alert-list"></div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin:24px 0 12px;color:var(--text2)">📅 SCADENZE IMMINENTI (entro 4 giorni)</div>
+      <div id="scadenzeList" class="alert-list"></div>
     </div>
 
     <!-- REPORT -->
@@ -576,6 +587,16 @@
       </select>
     </div>
     <div class="form-group">
+      <label class="form-label">Settore</label>
+      <select class="form-select" id="fSettore">
+        <option value="">— Nessuno —</option>
+        <option value="Dispensa">Dispensa</option>
+        <option value="Frigo">Frigo</option>
+        <option value="Cucina">Cucina</option>
+        <option value="Bar">Bar</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label class="form-label">Unità misura</label>
       <input class="form-input" id="fUnita" placeholder="pz / lt / kg">
     </div>
@@ -589,6 +610,10 @@
       <label class="form-label">Scorta minima</label>
       <input class="form-input" id="fMin" type="number" min="0" value="5">
     </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Data scadenza (opzionale)</label>
+    <input class="form-input" id="fScadenza" type="date">
   </div>
   <div class="form-group">
     <label class="form-label">Note</label>
@@ -718,12 +743,21 @@ async function caricaTutto() {
 //  DASHBOARD
 // ══════════════════════════════════════════
 function aggiornaDashboard() {
-  const crit = prodotti.filter(p => Number(p["Quantità"]) === 0).length;
-  const low  = prodotti.filter(p => Number(p["Quantità"]) > 0 && Number(p["Quantità"]) <= Number(p["Scorta Minima"])).length;
-  const cats = new Set(prodotti.map(p => p["Categoria"])).size;
+  const oggi = new Date(); oggi.setHours(0,0,0,0);
+  const crit  = prodotti.filter(p => Number(p["Quantità"]) === 0).length;
+  const low   = prodotti.filter(p => Number(p["Quantità"]) > 0 && Number(p["Quantità"]) <= Number(p["Scorta Minima"])).length;
+  const cats  = new Set(prodotti.map(p => p["Categoria"])).size;
+  const scad  = prodotti.filter(p => {
+    if (!p["Scadenza"]) return false;
+    const d = new Date(p["Scadenza"]); d.setHours(0,0,0,0);
+    if (isNaN(d)) return false;
+    return Math.round((d - oggi) / 86400000) <= 4;
+  }).length;
+
   document.getElementById("statTot").textContent  = prodotti.length;
   document.getElementById("statCrit").textContent = crit;
   document.getElementById("statLow").textContent  = low;
+  document.getElementById("statScad").textContent = scad;
   document.getElementById("statCat").textContent  = cats;
 
   const container = document.getElementById("dashAllerte");
@@ -735,7 +769,7 @@ function aggiornaDashboard() {
   container.innerHTML = allerte.map(p => `
     <div class="alert-item">
       <span class="alert-icon">${Number(p["Quantità"]) === 0 ? "🔴" : "🟡"}</span>
-      <span class="alert-name">${p["Nome"]} <span style="color:var(--text3);font-size:11px">(${p["Categoria"]})</span></span>
+      <span class="alert-name">${p["Nome"]} <span style="color:var(--text3);font-size:11px">(${p["Categoria"]}${p["Settore"] ? " · " + p["Settore"] : ""})</span></span>
       <span class="alert-qty">${p["Quantità"]} ${p["Unità"] || "pz"} / min ${p["Scorta Minima"]}</span>
     </div>
   `).join("");
@@ -745,14 +779,16 @@ function aggiornaDashboard() {
 //  TABELLA PRODOTTI
 // ══════════════════════════════════════════
 function renderTabella() {
-  const q   = document.getElementById("searchBox").value.toLowerCase();
-  const cat = document.getElementById("filterCat").value;
-  const sc  = document.getElementById("filterScorta").value;
+  const q       = document.getElementById("searchBox").value.toLowerCase();
+  const cat     = document.getElementById("filterCat").value;
+  const sc      = document.getElementById("filterScorta").value;
+  const settore = document.getElementById("filterSettore").value;
 
   let lista = prodotti.filter(p => {
     const nome = (p["Nome"] || "").toLowerCase();
     if (q && !nome.includes(q)) return false;
     if (cat && p["Categoria"] !== cat) return false;
+    if (settore && p["Settore"] !== settore) return false;
     if (sc) {
       const qty = Number(p["Quantità"]); const min = Number(p["Scorta Minima"]);
       if (sc === "crit" && qty !== 0) return false;
@@ -765,18 +801,31 @@ function renderTabella() {
   document.getElementById("prodSubtitle").textContent = lista.length + " prodotti";
   const body = document.getElementById("tabellaBody");
   if (lista.length === 0) {
-    body.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📭</div>Nessun prodotto trovato</div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📭</div>Nessun prodotto trovato</div></td></tr>`;
     return;
   }
+  const oggi = new Date(); oggi.setHours(0,0,0,0);
   body.innerHTML = lista.map(p => {
     const qty = Number(p["Quantità"]); const min = Number(p["Scorta Minima"]);
     const cls = qty === 0 ? "crit" : qty <= min ? "low" : "ok";
+    const scad = p["Scadenza"] ? new Date(p["Scadenza"]) : null;
+    let scadHTML = "—";
+    if (scad && !isNaN(scad)) {
+      scad.setHours(0,0,0,0);
+      const giorni = Math.round((scad - oggi) / 86400000);
+      const dataStr = scad.toLocaleDateString("it-IT");
+      if (giorni < 0) scadHTML = `<span style="color:var(--danger);font-weight:600">⚠️ Scaduto</span>`;
+      else if (giorni <= 4) scadHTML = `<span style="color:var(--accent2);font-weight:600">⏰ ${dataStr} (${giorni}gg)</span>`;
+      else scadHTML = `<span style="color:var(--text2)">${dataStr}</span>`;
+    }
     return `<tr>
       <td><strong>${p["Nome"]}</strong></td>
       <td><span class="cat-badge">${p["Categoria"]}</span></td>
+      <td><span class="cat-badge" style="background:rgba(232,197,71,.08);color:var(--accent);border-color:rgba(232,197,71,.2)">${p["Settore"] || "—"}</span></td>
       <td><span class="qty-cell ${cls}">${qty}</span></td>
       <td style="color:var(--text3)">${min}</td>
       <td style="color:var(--text2)">${p["Unità"] || "—"}</td>
+      <td>${scadHTML}</td>
       <td style="color:var(--text2);font-size:12px">${p["Note"] || "—"}</td>
       <td><div class="actions-cell">
         <button class="btn btn-outline btn-sm" onclick="apriMovimento('${p["ID"]}','${p["Nome"].replace(/'/g,"\\'")}')">⇅ Mov.</button>
@@ -795,9 +844,11 @@ function apriPanelNuovo() {
   document.getElementById("fId").value = "";
   document.getElementById("fNome").value = "";
   document.getElementById("fCat").value = "Bevande";
+  document.getElementById("fSettore").value = "";
   document.getElementById("fUnita").value = "";
   document.getElementById("fQta").value = 0;
   document.getElementById("fMin").value = 5;
+  document.getElementById("fScadenza").value = "";
   document.getElementById("fNote").value = "";
   document.getElementById("panelBg").classList.add("open");
   document.getElementById("prodottoPanel").classList.add("open");
@@ -810,9 +861,11 @@ function apriPanelModifica(id) {
   document.getElementById("fId").value = p["ID"];
   document.getElementById("fNome").value = p["Nome"];
   document.getElementById("fCat").value = p["Categoria"];
+  document.getElementById("fSettore").value = p["Settore"] || "";
   document.getElementById("fUnita").value = p["Unità"] || "";
   document.getElementById("fQta").value = p["Quantità"];
   document.getElementById("fMin").value = p["Scorta Minima"];
+  document.getElementById("fScadenza").value = p["Scadenza"] || "";
   document.getElementById("fNote").value = p["Note"] || "";
   document.getElementById("panelBg").classList.add("open");
   document.getElementById("prodottoPanel").classList.add("open");
@@ -834,9 +887,11 @@ async function salvaProdotto() {
     azione: id ? "updateProdotto" : "addProdotto",
     id, nome,
     categoria: document.getElementById("fCat").value,
+    settore: document.getElementById("fSettore").value,
     unita: document.getElementById("fUnita").value,
     quantita: document.getElementById("fQta").value,
     scortaMin: document.getElementById("fMin").value,
+    scadenza: document.getElementById("fScadenza").value,
     note: document.getElementById("fNote").value
   };
   const r = await apiPost(body);
@@ -935,27 +990,63 @@ async function caricaMovimenti() {
 //  ALLERTE PAGE
 // ══════════════════════════════════════════
 function aggiornaAllerte() {
+  // Scorte basse
   const container = document.getElementById("alerteList");
   const allerte = prodotti.filter(p => Number(p["Quantità"]) <= Number(p["Scorta Minima"]));
   if (allerte.length === 0) {
     container.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Tutte le scorte sono nella norma!</div>';
-    return;
+  } else {
+    container.innerHTML = allerte.map(p => {
+      const isCrit = Number(p["Quantità"]) === 0;
+      return `<div class="alert-item">
+        <span class="alert-icon">${isCrit ? "🔴" : "🟡"}</span>
+        <div style="flex:1">
+          <div style="font-size:14px;margin-bottom:2px">${p["Nome"]}</div>
+          <div style="font-size:11px;color:var(--text2)">${p["Categoria"]}${p["Settore"] ? " · " + p["Settore"] : ""} · min. ${p["Scorta Minima"]} ${p["Unità"] || "pz"}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="alert-qty" style="font-family:'Syne',sans-serif;font-weight:700;font-size:18px">${p["Quantità"]}</div>
+          <div style="font-size:11px;color:var(--text3)">${p["Unità"] || "pz"} disponibili</div>
+        </div>
+        <button class="btn btn-outline btn-sm" style="margin-left:12px" onclick="apriMovimento('${p["ID"]}','${p["Nome"].replace(/'/g,"\\'")}')">+ Riordina</button>
+      </div>`;
+    }).join("");
   }
-  container.innerHTML = allerte.map(p => {
-    const isCrit = Number(p["Quantità"]) === 0;
-    return `<div class="alert-item">
-      <span class="alert-icon">${isCrit ? "🔴" : "🟡"}</span>
-      <div style="flex:1">
-        <div style="font-size:14px;margin-bottom:2px">${p["Nome"]}</div>
-        <div style="font-size:11px;color:var(--text2)">${p["Categoria"]} · min. ${p["Scorta Minima"]} ${p["Unità"] || "pz"}</div>
-      </div>
-      <div style="text-align:right">
-        <div class="alert-qty" style="font-family:'Syne',sans-serif;font-weight:700;font-size:18px">${p["Quantità"]}</div>
-        <div style="font-size:11px;color:var(--text3)">${p["Unità"] || "pz"} disponibili</div>
-      </div>
-      <button class="btn btn-outline btn-sm" style="margin-left:12px" onclick="apriMovimento('${p["ID"]}','${p["Nome"].replace(/'/g,"\\'")}')">+ Riordina</button>
-    </div>`;
-  }).join("");
+
+  // Scadenze imminenti
+  const contScad = document.getElementById("scadenzeList");
+  const oggi = new Date(); oggi.setHours(0,0,0,0);
+  const scadenti = prodotti.filter(p => {
+    if (!p["Scadenza"]) return false;
+    const d = new Date(p["Scadenza"]); d.setHours(0,0,0,0);
+    if (isNaN(d)) return false;
+    const giorni = Math.round((d - oggi) / 86400000);
+    return giorni <= 4;
+  }).sort((a, b) => new Date(a["Scadenza"]) - new Date(b["Scadenza"]));
+
+  if (scadenti.length === 0) {
+    contScad.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Nessuna scadenza imminente</div>';
+  } else {
+    contScad.innerHTML = scadenti.map(p => {
+      const d = new Date(p["Scadenza"]); d.setHours(0,0,0,0);
+      const giorni = Math.round((d - oggi) / 86400000);
+      const dataStr = d.toLocaleDateString("it-IT");
+      const isScaduto = giorni < 0;
+      return `<div class="alert-item" style="background:${isScaduto ? "rgba(224,82,82,.08)" : "rgba(240,160,75,.08)"};border-color:${isScaduto ? "rgba(224,82,82,.25)" : "rgba(240,160,75,.25)"}">
+        <span class="alert-icon">${isScaduto ? "🔴" : "⏰"}</span>
+        <div style="flex:1">
+          <div style="font-size:14px;margin-bottom:2px">${p["Nome"]}</div>
+          <div style="font-size:11px;color:var(--text2)">${p["Categoria"]}${p["Settore"] ? " · " + p["Settore"] : ""}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:${isScaduto ? "var(--danger)" : "var(--accent2)"}">
+            ${isScaduto ? "Scaduto" : giorni === 0 ? "Oggi!" : "tra " + giorni + " gg"}
+          </div>
+          <div style="font-size:11px;color:var(--text3)">${dataStr}</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
 }
 
 // ══════════════════════════════════════════
