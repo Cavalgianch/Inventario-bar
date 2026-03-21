@@ -374,7 +374,7 @@
 <body>
 
 <!-- CONFIG MODAL -->
-<div class="modal-bg" id="configModal">
+<div class="modal-bg" id="configModal" style="display:none">
   <div class="modal">
     <h2>⚙️ Configurazione API</h2>
     <p>Incolla l'URL della tua App Web di Google Apps Script.<br>
@@ -640,18 +640,13 @@ let paginaAttiva = "dashboard";
 //  INIT
 // ══════════════════════════════════════════
 window.addEventListener("DOMContentLoaded", () => {
-  if (!API_URL) {
-    document.getElementById("configModal").style.display = "flex";
-  } else {
-    caricaTutto();
-  }
+  document.getElementById("configModal").style.display = "none";
+  caricaTutto();
 });
 
 function salvaApiUrl() {
   const v = document.getElementById("apiUrlInput").value.trim();
-  if (!v.startsWith("https://script.google.com")) {
-    toast("URL non valido", "err"); return;
-  }
+  if (!v) { toast("Inserisci un URL", "err"); return; }
   API_URL = v;
   localStorage.setItem("barInventoryApiUrl", v);
   document.getElementById("configModal").style.display = "none";
