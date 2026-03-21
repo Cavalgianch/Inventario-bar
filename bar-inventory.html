@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bar Inventory</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0e0c;
+    --surface: #1a1916;
+    --surface2: #242220;
+    --border: #2e2c29;
+    --accent: #e8c547;
+    --accent2: #f0a04b;
+    --danger: #e05252;
+    --success: #52c47a;
+    --text: #f0ede8;
+    --text2: #9b9790;
+    --text3: #5a5855;
+    --carico: #52c47a;
+    --scarico: #e05252;
+    --radius: 10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 12px; }
+  .topbar-logo {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; color: #000;
+  }
+  .topbar-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: .02em; }
+  .topbar-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .api-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--text2);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); }
+  .dot.ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .dot.err { background: var(--danger); }
+
+  /* ── CONFIG MODAL ── */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+    width: min(480px, 92vw);
+  }
+  .modal h2 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; margin-bottom: 8px; }
+  .modal p { color: var(--text2); font-size: 12px; line-height: 1.7; margin-bottom: 24px; }
+  .modal input {
+    width: 100%; padding: 12px 14px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    margin-bottom: 14px;
+  }
+  .modal input:focus { outline: none; border-color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .app { display: flex; height: calc(100vh - 61px); }
+  .sidebar {
+    width: 220px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    display: flex; flex-direction: column;
+  }
+  .nav-section { font-size: 10px; color: var(--text3); letter-spacing: .12em; text-transform: uppercase; padding: 0 20px 8px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; cursor: pointer;
+    font-size: 13px; color: var(--text2);
+    border-left: 3px solid transparent;
+    transition: all .15s;
+    user-select: none;
+  }
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(232,197,71,.06); }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-bottom { margin-top: auto; padding: 0 20px 16px; }
+  .btn-settings {
+    width: 100%; padding: 9px; background: none;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text2); font-family: 'DM Mono', monospace; font-size: 12px;
+    cursor: pointer; transition: all .15s;
+  }
+  .btn-settings:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── MAIN ── */
+  .main { flex: 1; overflow-y: auto; padding: 28px; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .page-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 26px; }
+  .page-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 10px 18px; border-radius: var(--radius);
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    cursor: pointer; border: none; transition: all .15s;
+    font-weight: 500;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #f0d060; }
+  .btn-outline { background: none; border: 1px solid var(--border); color: var(--text2); }
+  .btn-outline:hover { border-color: var(--text2); color: var(--text); }
+  .btn-danger { background: none; border: 1px solid var(--danger); color: var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── STATS CARDS ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+  }
+  .stat-label { font-size: 11px; color: var(--text2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px; }
+  .stat-value.warning { color: var(--accent2); }
+  .stat-value.danger  { color: var(--danger); }
+  .stat-value.success { color: var(--success); }
+
+  /* ── ALERTS ── */
+  .alert-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .alert-item {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(224,82,82,.08); border: 1px solid rgba(224,82,82,.25);
+    border-radius: var(--radius); padding: 12px 16px; font-size: 13px;
+  }
+  .alert-icon { font-size: 16px; }
+  .alert-name { flex: 1; }
+  .alert-qty { color: var(--danger); font-weight: 500; }
+
+  /* ── TOOLBAR ── */
+  .toolbar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+  .search-box {
+    flex: 1; min-width: 200px;
+    padding: 10px 14px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+  }
+  .search-box:focus { outline: none; border-color: var(--accent); }
+  .filter-select {
+    padding: 10px 14px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+    cursor: pointer;
+  }
+  .filter-select:focus { outline: none; }
+
+  /* ── TABLE ── */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 12px 16px; text-align: left;
+    font-size: 11px; color: var(--text3); letter-spacing: .08em; text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 13px 16px; font-size: 13px; }
+  .qty-cell { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+  .qty-cell.low  { color: var(--accent2); }
+  .qty-cell.crit { color: var(--danger); }
+  .qty-cell.ok   { color: var(--success); }
+  .cat-badge {
+    display: inline-block; padding: 3px 8px;
+    border-radius: 4px; font-size: 11px;
+    background: var(--surface2); color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  .actions-cell { display: flex; gap: 6px; }
+
+  /* ── FORM PANEL ── */
+  .panel-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 150; display: none;
+  }
+  .panel-bg.open { display: block; }
+  .panel {
+    position: fixed; top: 0; right: 0;
+    width: min(440px, 100vw); height: 100vh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 32px 28px;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+    z-index: 160;
+  }
+  .panel.open { transform: translateX(0); }
+  .panel h3 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; margin-bottom: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 11px; color: var(--text2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 11px 14px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 13px;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--accent); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-actions { display: flex; gap: 10px; margin-top: 24px; }
+
+  /* ── MOVIMENTO MODAL ── */
+  .mov-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.8);
+    display: none; align-items: center; justify-content: center;
+    z-index: 180;
+  }
+  .mov-modal.open { display: flex; }
+  .mov-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; width: min(400px, 92vw);
+  }
+  .mov-box h3 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; margin-bottom: 20px; }
+  .tipo-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
+  .tipo-btn {
+    flex: 1; padding: 10px; border-radius: var(--radius);
+    border: 2px solid var(--border); background: none;
+    color: var(--text2); font-family: 'DM Mono', monospace; font-size: 13px;
+    cursor: pointer; transition: all .15s;
+  }
+  .tipo-btn.carico.active  { border-color: var(--carico); color: var(--carico); background: rgba(82,196,122,.08); }
+  .tipo-btn.scarico.active { border-color: var(--scarico); color: var(--scarico); background: rgba(224,82,82,.08); }
+
+  /* ── STORICO ── */
+  .mov-list { display: flex; flex-direction: column; gap: 8px; }
+  .mov-item {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+  }
+  .mov-tipo {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .mov-tipo.carico  { background: var(--carico); box-shadow: 0 0 6px var(--carico); }
+  .mov-tipo.scarico { background: var(--scarico); box-shadow: 0 0 6px var(--scarico); }
+  .mov-info { flex: 1; }
+  .mov-nome { font-size: 13px; margin-bottom: 2px; }
+  .mov-time { font-size: 11px; color: var(--text3); }
+  .mov-qta { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+  .mov-qta.carico  { color: var(--carico); }
+  .mov-qta.scarico { color: var(--scarico); }
+  .mov-note-text { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  /* ── EMPTY / LOADING ── */
+  .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .spinner {
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; width: 30px; height: 30px;
+    animation: spin .7s linear infinite;
+    margin: 60px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast-wrap { position: fixed; bottom: 24px; right: 24px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    padding: 12px 18px; border-radius: var(--radius); font-size: 13px;
+    animation: slideIn .2s ease;
+    max-width: 320px;
+  }
+  .toast.ok  { background: var(--success); color: #000; }
+  .toast.err { background: var(--danger);  color: #fff; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── REPORT / PRINT ── */
+  .report-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .report-header-block {
+    background: var(--surface2); padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .report-title-main { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; }
+  .report-meta { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .report-stats-inline { display: flex; gap: 20px; }
+  .rsi { text-align: right; }
+  .rsi-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; }
+  .rsi-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+  .report-table-wrap { overflow-x: auto; }
+  .report-table { width: 100%; border-collapse: collapse; }
+  .report-table thead th {
+    padding: 10px 16px; text-align: left;
+    font-size: 10px; color: var(--text3); letter-spacing: .08em; text-transform: uppercase;
+    border-bottom: 1px solid var(--border); font-weight: 400;
+  }
+  .report-table tbody tr { border-bottom: 1px solid var(--border); }
+  .report-table tbody tr:last-child { border-bottom: none; }
+  .report-table tbody td { padding: 11px 16px; font-size: 13px; }
+  .report-table tbody tr:nth-child(even) { background: rgba(255,255,255,.015); }
+  .cat-group-header {
+    background: var(--surface2); padding: 8px 16px;
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--text2); border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .stato-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px;
+  }
+  .stato-badge.ok   { background: rgba(82,196,122,.12); color: var(--success); border: 1px solid rgba(82,196,122,.3); }
+  .stato-badge.low  { background: rgba(240,160,75,.12); color: var(--accent2); border: 1px solid rgba(240,160,75,.3); }
+  .stato-badge.crit { background: rgba(224,82,82,.12); color: var(--danger); border: 1px solid rgba(224,82,82,.3); }
+
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { background: #fff !important; color: #000 !important; font-size: 12px; }
+    .topbar, .sidebar, .page:not(.active), .page-header .btn,
+    #rTipo, #rCat, #rStato, #rOrdine, .form-label,
+    [style*="background:var(--surface)"][style*="border:1px"] { display: none !important; }
+    .app { display: block; height: auto; }
+    .main { padding: 0; overflow: visible; }
+    .report-box { border: 1px solid #ccc !important; border-radius: 0; }
+    .report-header-block { background: #f5f5f5 !important; border-bottom: 1px solid #ccc; }
+    .report-title-main { color: #000 !important; }
+    .report-meta { color: #666 !important; }
+    .rsi-val { color: #000 !important; }
+    .rsi-lbl { color: #999 !important; }
+    .report-table thead th { color: #666 !important; border-bottom: 1px solid #ccc; }
+    .report-table tbody tr { border-bottom: 1px solid #eee; }
+    .report-table tbody tr:nth-child(even) { background: #fafafa !important; }
+    .cat-group-header { background: #eee !important; color: #333 !important; border-bottom: 1px solid #ccc; }
+    .stato-badge.ok   { background: #e6f9ee !important; color: #1a7a40 !important; border-color: #a3d9b8 !important; }
+    .stato-badge.low  { background: #fff4e0 !important; color: #a05a00 !important; border-color: #f0c070 !important; }
+    .stato-badge.crit { background: #fdecea !important; color: #a01010 !important; border-color: #f0aaaa !important; }
+    .qty-cell.low  { color: #a05a00 !important; }
+    .qty-cell.crit { color: #a01010 !important; }
+    .qty-cell.ok   { color: #1a7a40 !important; }
+    .cat-badge { background: #eee !important; color: #333 !important; border-color: #ccc !important; }
+    .page-header { padding-bottom: 12px; border-bottom: 1px solid #ccc; margin-bottom: 16px; }
+    .page-title { color: #000 !important; font-size: 22px; }
+    .page-sub { color: #666 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- CONFIG MODAL -->
+<div class="modal-bg" id="configModal">
+  <div class="modal">
+    <h2>⚙️ Configurazione API</h2>
+    <p>Incolla l'URL della tua App Web di Google Apps Script.<br>
+       (Script → Distribuisci → Gestisci distribuzioni → copia URL)</p>
+    <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/..." />
+    <p style="margin-bottom:16px">Puoi cambiarlo in qualsiasi momento dal pulsante "Impostazioni" nella barra laterale.</p>
+    <button class="btn btn-primary" onclick="salvaApiUrl()">💾 Salva e connetti</button>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">B</div>
+    <div>
+      <div class="topbar-title">Bar Inventory</div>
+      <div class="topbar-sub">Gestione magazzino</div>
+    </div>
+  </div>
+  <div class="api-status">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusTxt">non connesso</span>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-section" style="margin-bottom:8px">Menu</div>
+    <div class="nav-item active" onclick="navTo('dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
+    <div class="nav-item" onclick="navTo('prodotti')"><span class="nav-icon">📦</span> Prodotti</div>
+    <div class="nav-item" onclick="navTo('movimenti')"><span class="nav-icon">🔄</span> Movimenti</div>
+    <div class="nav-item" onclick="navTo('allerte')"><span class="nav-icon">⚠️</span> Allerte</div>
+    <div class="nav-item" onclick="navTo('report')"><span class="nav-icon">🖨️</span> Report</div>
+    <div class="sidebar-bottom">
+      <button class="btn-settings" onclick="mostraConfig()">⚙️ Impostazioni API</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-sub">Panoramica inventario</div>
+        </div>
+        <button class="btn btn-outline" onclick="caricaTutto()">↻ Aggiorna</button>
+      </div>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-label">Prodotti totali</div><div class="stat-value" id="statTot">—</div></div>
+        <div class="stat-card"><div class="stat-label">Scorte critiche</div><div class="stat-value danger" id="statCrit">—</div></div>
+        <div class="stat-card"><div class="stat-label">Scorte in esaur.</div><div class="stat-value warning" id="statLow">—</div></div>
+        <div class="stat-card"><div class="stat-label">Categorie</div><div class="stat-value success" id="statCat">—</div></div>
+      </div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:12px;color:var(--text2)">⚠️ PRODOTTI SOTTO SOGLIA</div>
+      <div id="dashAllerte" class="alert-list"></div>
+    </div>
+
+    <!-- PRODOTTI -->
+    <div class="page" id="page-prodotti">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Prodotti</div>
+          <div class="page-sub" id="prodSubtitle">—</div>
+        </div>
+        <button class="btn btn-primary" onclick="apriPanelNuovo()">+ Nuovo prodotto</button>
+      </div>
+      <div class="toolbar">
+        <input class="search-box" id="searchBox" placeholder="Cerca prodotto..." oninput="renderTabella()">
+        <select class="filter-select" id="filterCat" onchange="renderTabella()">
+          <option value="">Tutte le categorie</option>
+          <option value="Bevande">Bevande</option>
+          <option value="Alimenti">Alimenti</option>
+          <option value="Materie prime">Materie prime</option>
+          <option value="Materiali consumo">Materiali consumo</option>
+        </select>
+        <select class="filter-select" id="filterScorta" onchange="renderTabella()">
+          <option value="">Tutte le scorte</option>
+          <option value="crit">Solo critiche</option>
+          <option value="low">Solo basse</option>
+          <option value="ok">Solo ok</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th><th>Categoria</th><th>Quantità</th><th>Min</th><th>Unità</th><th>Note</th><th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="tabellaBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MOVIMENTI -->
+    <div class="page" id="page-movimenti">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Movimenti</div>
+          <div class="page-sub">Storico carico / scarico</div>
+        </div>
+        <select class="filter-select" id="movFilter" onchange="caricaMovimenti()">
+          <option value="tutti">Tutti i prodotti</option>
+        </select>
+      </div>
+      <div id="movList" class="mov-list"></div>
+    </div>
+
+    <!-- ALLERTE -->
+    <div class="page" id="page-allerte">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Allerte scorte</div>
+          <div class="page-sub">Prodotti da riordinare</div>
+        </div>
+      </div>
+      <div id="alerteList" class="alert-list"></div>
+    </div>
+
+    <!-- REPORT -->
+    <div class="page" id="page-report">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Report</div>
+          <div class="page-sub">Stampa e visualizza report filtrati</div>
+        </div>
+        <button class="btn btn-primary" onclick="stampaReport()">🖨️ Stampa / Salva PDF</button>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:16px;color:var(--text2);letter-spacing:.06em;text-transform:uppercase">Filtri report</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">
+          <div>
+            <label class="form-label">Tipo report</label>
+            <select class="filter-select" id="rTipo" onchange="aggiornaReport()" style="width:100%">
+              <option value="inventario">Inventario completo</option>
+              <option value="allerte">Solo allerte scorte</option>
+              <option value="movimenti">Storico movimenti</option>
+              <option value="categoria">Riepilogo per categoria</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Categoria</label>
+            <select class="filter-select" id="rCat" onchange="aggiornaReport()" style="width:100%">
+              <option value="">Tutte</option>
+              <option value="Bevande">Bevande</option>
+              <option value="Alimenti">Alimenti</option>
+              <option value="Materie prime">Materie prime</option>
+              <option value="Materiali consumo">Materiali consumo</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Stato scorte</label>
+            <select class="filter-select" id="rStato" onchange="aggiornaReport()" style="width:100%">
+              <option value="">Tutti</option>
+              <option value="ok">OK</option>
+              <option value="low">In esaurimento</option>
+              <option value="crit">Critici (zero)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Ordina per</label>
+            <select class="filter-select" id="rOrdine" onchange="aggiornaReport()" style="width:100%">
+              <option value="nome">Nome A→Z</option>
+              <option value="qta_asc">Quantità ↑</option>
+              <option value="qta_desc">Quantità ↓</option>
+              <option value="categoria">Categoria</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="reportPreview"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- PANEL PRODOTTO -->
+<div class="panel-bg" id="panelBg" onclick="chiudiPanel()"></div>
+<div class="panel" id="prodottoPanel">
+  <h3 id="panelTitolo">Nuovo prodotto</h3>
+  <input type="hidden" id="fId">
+  <div class="form-group">
+    <label class="form-label">Nome *</label>
+    <input class="form-input" id="fNome" placeholder="Es. Coca Cola 33cl">
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Categoria *</label>
+      <select class="form-select" id="fCat">
+        <option value="Bevande">Bevande</option>
+        <option value="Alimenti">Alimenti</option>
+        <option value="Materie prime">Materie prime</option>
+        <option value="Materiali consumo">Materiali consumo</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Unità misura</label>
+      <input class="form-input" id="fUnita" placeholder="pz / lt / kg">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Quantità iniziale</label>
+      <input class="form-input" id="fQta" type="number" min="0" value="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Scorta minima</label>
+      <input class="form-input" id="fMin" type="number" min="0" value="5">
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Note</label>
+    <textarea class="form-textarea" id="fNote" rows="2" placeholder="Opzionale..."></textarea>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" onclick="salvaProdotto()" id="btnSalva">💾 Salva</button>
+    <button class="btn btn-outline" onclick="chiudiPanel()">Annulla</button>
+  </div>
+</div>
+
+<!-- MOVIMENTO MODAL -->
+<div class="mov-modal" id="movModal">
+  <div class="mov-box">
+    <h3 id="movModalTitolo">Registra movimento</h3>
+    <input type="hidden" id="movId">
+    <div class="tipo-toggle">
+      <button class="tipo-btn carico active" id="btnCarico" onclick="setTipo('carico')">▲ Carico</button>
+      <button class="tipo-btn scarico" id="btnScarico" onclick="setTipo('scarico')">▼ Scarico</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Quantità *</label>
+      <input class="form-input" id="movQta" type="number" min="1" value="1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Note</label>
+      <input class="form-input" id="movNote" placeholder="Opzionale...">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="inviaMovimento()" id="btnMovInvia">✓ Conferma</button>
+      <button class="btn btn-outline" onclick="chiudiMovModal()">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let API_URL = localStorage.getItem("barInventoryApiUrl") || "";
+let prodotti = [];
+let tipoMovimento = "carico";
+let paginaAttiva = "dashboard";
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+window.addEventListener("DOMContentLoaded", () => {
+  if (!API_URL) {
+    document.getElementById("configModal").style.display = "flex";
+  } else {
+    caricaTutto();
+  }
+});
+
+function salvaApiUrl() {
+  const v = document.getElementById("apiUrlInput").value.trim();
+  if (!v.startsWith("https://script.google.com")) {
+    toast("URL non valido", "err"); return;
+  }
+  API_URL = v;
+  localStorage.setItem("barInventoryApiUrl", v);
+  document.getElementById("configModal").style.display = "none";
+  caricaTutto();
+}
+
+function mostraConfig() {
+  document.getElementById("apiUrlInput").value = API_URL;
+  document.getElementById("configModal").style.display = "flex";
+}
+
+// ══════════════════════════════════════════
+//  API
+// ══════════════════════════════════════════
+async function api(params) {
+  if (!API_URL) { toast("Configura prima l'URL API", "err"); return null; }
+  try {
+    const qs = new URLSearchParams(params).toString();
+    const res = await fetch(API_URL + "?azione=" + params.azione + "&" + qs, {
+      method: "GET", redirect: "follow"
+    });
+    return await res.json();
+  } catch(e) {
+    console.error(e);
+    toast("Errore di connessione", "err");
+    setStatus(false);
+    return null;
+  }
+}
+
+async function apiPost(body) {
+  if (!API_URL) { toast("Configura prima l'URL API", "err"); return null; }
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    return await res.json();
+  } catch(e) {
+    console.error(e);
+    toast("Errore di connessione", "err");
+    setStatus(false);
+    return null;
+  }
+}
+
+function setStatus(ok) {
+  document.getElementById("statusDot").className = "dot " + (ok ? "ok" : "err");
+  document.getElementById("statusTxt").textContent = ok ? "connesso" : "errore";
+}
+
+// ══════════════════════════════════════════
+//  CARICAMENTO DATI
+// ══════════════════════════════════════════
+async function caricaTutto() {
+  const r = await api({ azione: "getProdotti" });
+  if (!r) return;
+  if (r.errore) { toast(r.errore, "err"); setStatus(false); return; }
+  prodotti = r;
+  setStatus(true);
+  aggiornaDashboard();
+  renderTabella();
+  aggiornaAllerte();
+  aggiornaMovFilter();
+  if (paginaAttiva === "movimenti") caricaMovimenti();
+}
+
+// ══════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════
+function aggiornaDashboard() {
+  const crit = prodotti.filter(p => Number(p["Quantità"]) === 0).length;
+  const low  = prodotti.filter(p => Number(p["Quantità"]) > 0 && Number(p["Quantità"]) <= Number(p["Scorta Minima"])).length;
+  const cats = new Set(prodotti.map(p => p["Categoria"])).size;
+  document.getElementById("statTot").textContent  = prodotti.length;
+  document.getElementById("statCrit").textContent = crit;
+  document.getElementById("statLow").textContent  = low;
+  document.getElementById("statCat").textContent  = cats;
+
+  const container = document.getElementById("dashAllerte");
+  const allerte = prodotti.filter(p => Number(p["Quantità"]) <= Number(p["Scorta Minima"]));
+  if (allerte.length === 0) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Tutte le scorte sono nella norma</div>';
+    return;
+  }
+  container.innerHTML = allerte.map(p => `
+    <div class="alert-item">
+      <span class="alert-icon">${Number(p["Quantità"]) === 0 ? "🔴" : "🟡"}</span>
+      <span class="alert-name">${p["Nome"]} <span style="color:var(--text3);font-size:11px">(${p["Categoria"]})</span></span>
+      <span class="alert-qty">${p["Quantità"]} ${p["Unità"] || "pz"} / min ${p["Scorta Minima"]}</span>
+    </div>
+  `).join("");
+}
+
+// ══════════════════════════════════════════
+//  TABELLA PRODOTTI
+// ══════════════════════════════════════════
+function renderTabella() {
+  const q   = document.getElementById("searchBox").value.toLowerCase();
+  const cat = document.getElementById("filterCat").value;
+  const sc  = document.getElementById("filterScorta").value;
+
+  let lista = prodotti.filter(p => {
+    const nome = (p["Nome"] || "").toLowerCase();
+    if (q && !nome.includes(q)) return false;
+    if (cat && p["Categoria"] !== cat) return false;
+    if (sc) {
+      const qty = Number(p["Quantità"]); const min = Number(p["Scorta Minima"]);
+      if (sc === "crit" && qty !== 0) return false;
+      if (sc === "low"  && (qty === 0 || qty > min)) return false;
+      if (sc === "ok"   && qty <= min) return false;
+    }
+    return true;
+  });
+
+  document.getElementById("prodSubtitle").textContent = lista.length + " prodotti";
+  const body = document.getElementById("tabellaBody");
+  if (lista.length === 0) {
+    body.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">📭</div>Nessun prodotto trovato</div></td></tr>`;
+    return;
+  }
+  body.innerHTML = lista.map(p => {
+    const qty = Number(p["Quantità"]); const min = Number(p["Scorta Minima"]);
+    const cls = qty === 0 ? "crit" : qty <= min ? "low" : "ok";
+    return `<tr>
+      <td><strong>${p["Nome"]}</strong></td>
+      <td><span class="cat-badge">${p["Categoria"]}</span></td>
+      <td><span class="qty-cell ${cls}">${qty}</span></td>
+      <td style="color:var(--text3)">${min}</td>
+      <td style="color:var(--text2)">${p["Unità"] || "—"}</td>
+      <td style="color:var(--text2);font-size:12px">${p["Note"] || "—"}</td>
+      <td><div class="actions-cell">
+        <button class="btn btn-outline btn-sm" onclick="apriMovimento('${p["ID"]}','${p["Nome"].replace(/'/g,"\\'")}')">⇅ Mov.</button>
+        <button class="btn btn-outline btn-sm" onclick="apriPanelModifica('${p["ID"]}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminaProdotto('${p["ID"]}','${p["Nome"].replace(/'/g,"\\'")}')">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join("");
+}
+
+// ══════════════════════════════════════════
+//  PANEL PRODOTTO
+// ══════════════════════════════════════════
+function apriPanelNuovo() {
+  document.getElementById("panelTitolo").textContent = "Nuovo prodotto";
+  document.getElementById("fId").value = "";
+  document.getElementById("fNome").value = "";
+  document.getElementById("fCat").value = "Bevande";
+  document.getElementById("fUnita").value = "";
+  document.getElementById("fQta").value = 0;
+  document.getElementById("fMin").value = 5;
+  document.getElementById("fNote").value = "";
+  document.getElementById("panelBg").classList.add("open");
+  document.getElementById("prodottoPanel").classList.add("open");
+}
+
+function apriPanelModifica(id) {
+  const p = prodotti.find(x => x["ID"] === id);
+  if (!p) return;
+  document.getElementById("panelTitolo").textContent = "Modifica prodotto";
+  document.getElementById("fId").value = p["ID"];
+  document.getElementById("fNome").value = p["Nome"];
+  document.getElementById("fCat").value = p["Categoria"];
+  document.getElementById("fUnita").value = p["Unità"] || "";
+  document.getElementById("fQta").value = p["Quantità"];
+  document.getElementById("fMin").value = p["Scorta Minima"];
+  document.getElementById("fNote").value = p["Note"] || "";
+  document.getElementById("panelBg").classList.add("open");
+  document.getElementById("prodottoPanel").classList.add("open");
+}
+
+function chiudiPanel() {
+  document.getElementById("panelBg").classList.remove("open");
+  document.getElementById("prodottoPanel").classList.remove("open");
+}
+
+async function salvaProdotto() {
+  const nome = document.getElementById("fNome").value.trim();
+  if (!nome) { toast("Il nome è obbligatorio", "err"); return; }
+  const btn = document.getElementById("btnSalva");
+  btn.disabled = true; btn.textContent = "Salvo...";
+
+  const id = document.getElementById("fId").value;
+  const body = {
+    azione: id ? "updateProdotto" : "addProdotto",
+    id, nome,
+    categoria: document.getElementById("fCat").value,
+    unita: document.getElementById("fUnita").value,
+    quantita: document.getElementById("fQta").value,
+    scortaMin: document.getElementById("fMin").value,
+    note: document.getElementById("fNote").value
+  };
+  const r = await apiPost(body);
+  btn.disabled = false; btn.textContent = "💾 Salva";
+  if (!r || r.errore) { toast(r?.errore || "Errore", "err"); return; }
+  toast(id ? "Prodotto aggiornato" : "Prodotto aggiunto", "ok");
+  chiudiPanel();
+  await caricaTutto();
+}
+
+async function eliminaProdotto(id, nome) {
+  if (!confirm(`Eliminare "${nome}"?`)) return;
+  const r = await apiPost({ azione: "deleteProdotto", id });
+  if (!r || r.errore) { toast(r?.errore || "Errore", "err"); return; }
+  toast("Prodotto eliminato", "ok");
+  await caricaTutto();
+}
+
+// ══════════════════════════════════════════
+//  MOVIMENTO
+// ══════════════════════════════════════════
+function apriMovimento(id, nome) {
+  document.getElementById("movId").value = id;
+  document.getElementById("movModalTitolo").textContent = "Movimento: " + nome;
+  document.getElementById("movQta").value = 1;
+  document.getElementById("movNote").value = "";
+  setTipo("carico");
+  document.getElementById("movModal").classList.add("open");
+}
+
+function chiudiMovModal() {
+  document.getElementById("movModal").classList.remove("open");
+}
+
+function setTipo(t) {
+  tipoMovimento = t;
+  document.getElementById("btnCarico").classList.toggle("active", t === "carico");
+  document.getElementById("btnScarico").classList.toggle("active", t === "scarico");
+}
+
+async function inviaMovimento() {
+  const qta = Number(document.getElementById("movQta").value);
+  if (!qta || qta <= 0) { toast("Inserisci una quantità valida", "err"); return; }
+  const btn = document.getElementById("btnMovInvia");
+  btn.disabled = true; btn.textContent = "Invio...";
+
+  const r = await apiPost({
+    azione: "movimento",
+    id: document.getElementById("movId").value,
+    tipo: tipoMovimento,
+    quantita: qta,
+    note: document.getElementById("movNote").value
+  });
+  btn.disabled = false; btn.textContent = "✓ Conferma";
+  if (!r || r.errore) { toast(r?.errore || "Errore", "err"); return; }
+  toast(`${tipoMovimento === "carico" ? "Carico" : "Scarico"} registrato (nuova qtà: ${r.nuovaQuantita})`, "ok");
+  chiudiMovModal();
+  await caricaTutto();
+}
+
+// ══════════════════════════════════════════
+//  MOVIMENTI PAGE
+// ══════════════════════════════════════════
+function aggiornaMovFilter() {
+  const sel = document.getElementById("movFilter");
+  const val = sel.value;
+  sel.innerHTML = '<option value="tutti">Tutti i prodotti</option>' +
+    prodotti.map(p => `<option value="${p["ID"]}">${p["Nome"]}</option>`).join("");
+  sel.value = val;
+}
+
+async function caricaMovimenti() {
+  const id = document.getElementById("movFilter").value;
+  const container = document.getElementById("movList");
+  container.innerHTML = '<div class="spinner"></div>';
+  const r = await api({ azione: "getMovimenti", id });
+  if (!r || r.errore) { container.innerHTML = `<div class="empty">Errore: ${r?.errore || "connessione"}</div>`; return; }
+  if (r.length === 0) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>Nessun movimento registrato</div>';
+    return;
+  }
+  container.innerHTML = r.map(m => `
+    <div class="mov-item">
+      <div class="mov-tipo ${m["Tipo"]}"></div>
+      <div class="mov-info">
+        <div class="mov-nome">${m["Prodotto Nome"]}</div>
+        <div class="mov-time">${m["Timestamp"]}</div>
+        ${m["Note"] ? `<div class="mov-note-text">📝 ${m["Note"]}</div>` : ""}
+      </div>
+      <div class="mov-qta ${m["Tipo"]}">${m["Tipo"] === "carico" ? "+" : "−"}${m["Quantità"]}</div>
+    </div>
+  `).join("");
+}
+
+// ══════════════════════════════════════════
+//  ALLERTE PAGE
+// ══════════════════════════════════════════
+function aggiornaAllerte() {
+  const container = document.getElementById("alerteList");
+  const allerte = prodotti.filter(p => Number(p["Quantità"]) <= Number(p["Scorta Minima"]));
+  if (allerte.length === 0) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Tutte le scorte sono nella norma!</div>';
+    return;
+  }
+  container.innerHTML = allerte.map(p => {
+    const isCrit = Number(p["Quantità"]) === 0;
+    return `<div class="alert-item">
+      <span class="alert-icon">${isCrit ? "🔴" : "🟡"}</span>
+      <div style="flex:1">
+        <div style="font-size:14px;margin-bottom:2px">${p["Nome"]}</div>
+        <div style="font-size:11px;color:var(--text2)">${p["Categoria"]} · min. ${p["Scorta Minima"]} ${p["Unità"] || "pz"}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="alert-qty" style="font-family:'Syne',sans-serif;font-weight:700;font-size:18px">${p["Quantità"]}</div>
+        <div style="font-size:11px;color:var(--text3)">${p["Unità"] || "pz"} disponibili</div>
+      </div>
+      <button class="btn btn-outline btn-sm" style="margin-left:12px" onclick="apriMovimento('${p["ID"]}','${p["Nome"].replace(/'/g,"\\'")}')">+ Riordina</button>
+    </div>`;
+  }).join("");
+}
+
+// ══════════════════════════════════════════
+//  NAVIGAZIONE
+// ══════════════════════════════════════════
+function navTo(pagina) {
+  paginaAttiva = pagina;
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById("page-" + pagina).classList.add("active");
+  document.querySelectorAll(".nav-item")[
+    ["dashboard","prodotti","movimenti","allerte","report"].indexOf(pagina)
+  ].classList.add("active");
+  if (pagina === "movimenti") caricaMovimenti();
+  if (pagina === "report") aggiornaReport();
+}
+
+// ══════════════════════════════════════════
+//  REPORT
+// ══════════════════════════════════════════
+function getStatoProdotto(p) {
+  const qty = Number(p["Quantità"]); const min = Number(p["Scorta Minima"]);
+  if (qty === 0) return "crit";
+  if (qty <= min) return "low";
+  return "ok";
+}
+function statoLabel(s) {
+  return { crit: "Critico", low: "In esaur.", ok: "OK" }[s] || s;
+}
+
+function filtraProdottiReport() {
+  const cat   = document.getElementById("rCat").value;
+  const stato = document.getElementById("rStato").value;
+  const ordine = document.getElementById("rOrdine").value;
+
+  let lista = [...prodotti];
+  if (cat)   lista = lista.filter(p => p["Categoria"] === cat);
+  if (stato) lista = lista.filter(p => getStatoProdotto(p) === stato);
+
+  lista.sort((a, b) => {
+    if (ordine === "nome")      return (a["Nome"] || "").localeCompare(b["Nome"] || "");
+    if (ordine === "qta_asc")   return Number(a["Quantità"]) - Number(b["Quantità"]);
+    if (ordine === "qta_desc")  return Number(b["Quantità"]) - Number(a["Quantità"]);
+    if (ordine === "categoria") return (a["Categoria"] || "").localeCompare(b["Categoria"] || "");
+    return 0;
+  });
+  return lista;
+}
+
+async function aggiornaReport() {
+  const tipo = document.getElementById("rTipo").value;
+  const container = document.getElementById("reportPreview");
+  const ora = new Date().toLocaleString("it-IT");
+
+  if (tipo === "movimenti") {
+    container.innerHTML = '<div class="spinner"></div>';
+    const r = await api({ azione: "getMovimenti", id: "tutti" });
+    if (!r || r.errore) { container.innerHTML = `<div class="empty">Errore caricamento movimenti</div>`; return; }
+    const carichiTot = r.filter(m => m["Tipo"] === "carico").reduce((s, m) => s + Number(m["Quantità"]), 0);
+    const scarichiTot = r.filter(m => m["Tipo"] === "scarico").reduce((s, m) => s + Number(m["Quantità"]), 0);
+    container.innerHTML = `
+      <div class="report-box">
+        <div class="report-header-block">
+          <div>
+            <div class="report-title-main">📋 Storico Movimenti</div>
+            <div class="report-meta">Generato il ${ora} · ${r.length} movimenti</div>
+          </div>
+          <div class="report-stats-inline">
+            <div class="rsi"><div class="rsi-val" style="color:var(--carico)">+${carichiTot}</div><div class="rsi-lbl">Tot. Carichi</div></div>
+            <div class="rsi"><div class="rsi-val" style="color:var(--scarico)">−${scarichiTot}</div><div class="rsi-lbl">Tot. Scarichi</div></div>
+          </div>
+        </div>
+        <div class="report-table-wrap">
+          <table class="report-table">
+            <thead><tr><th>Data/Ora</th><th>Prodotto</th><th>Tipo</th><th>Quantità</th><th>Note</th></tr></thead>
+            <tbody>
+              ${r.map(m => `<tr>
+                <td style="color:var(--text3);font-size:12px">${m["Timestamp"]}</td>
+                <td><strong>${m["Prodotto Nome"]}</strong></td>
+                <td><span class="stato-badge ${m["Tipo"] === "carico" ? "ok" : "crit"}">${m["Tipo"] === "carico" ? "▲ Carico" : "▼ Scarico"}</span></td>
+                <td style="font-family:'Syne',sans-serif;font-weight:700;color:${m["Tipo"]==="carico"?"var(--carico)":"var(--scarico)"}">${m["Tipo"]==="carico"?"+":"−"}${m["Quantità"]}</td>
+                <td style="color:var(--text2);font-size:12px">${m["Note"] || "—"}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (tipo === "categoria") {
+    const lista = filtraProdottiReport();
+    const categorie = [...new Set(lista.map(p => p["Categoria"]))].sort();
+    let righe = "";
+    categorie.forEach(cat => {
+      const items = lista.filter(p => p["Categoria"] === cat);
+      const totQta = items.reduce((s, p) => s + Number(p["Quantità"]), 0);
+      righe += `<tr><td colspan="5" class="cat-group-header">📁 ${cat} — ${items.length} prodotti · tot. ${totQta} unità</td></tr>`;
+      items.forEach(p => {
+        const s = getStatoProdotto(p);
+        righe += `<tr>
+          <td style="padding-left:28px">${p["Nome"]}</td>
+          <td style="font-family:'Syne',sans-serif;font-weight:700" class="qty-cell ${s}">${p["Quantità"]}</td>
+          <td style="color:var(--text3)">${p["Scorta Minima"]}</td>
+          <td style="color:var(--text2)">${p["Unità"] || "pz"}</td>
+          <td><span class="stato-badge ${s}">${statoLabel(s)}</span></td>
+        </tr>`;
+      });
+    });
+    container.innerHTML = `
+      <div class="report-box">
+        <div class="report-header-block">
+          <div>
+            <div class="report-title-main">📁 Riepilogo per Categoria</div>
+            <div class="report-meta">Generato il ${ora} · ${lista.length} prodotti · ${categorie.length} categorie</div>
+          </div>
+        </div>
+        <div class="report-table-wrap">
+          <table class="report-table">
+            <thead><tr><th>Prodotto</th><th>Qtà</th><th>Min</th><th>Unità</th><th>Stato</th></tr></thead>
+            <tbody>${righe}</tbody>
+          </table>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // inventario / allerte
+  let lista = filtraProdottiReport();
+  if (tipo === "allerte") lista = lista.filter(p => getStatoProdotto(p) !== "ok");
+
+  const critici = lista.filter(p => getStatoProdotto(p) === "crit").length;
+  const bassi   = lista.filter(p => getStatoProdotto(p) === "low").length;
+  const ok      = lista.filter(p => getStatoProdotto(p) === "ok").length;
+
+  const titolo = tipo === "allerte" ? "⚠️ Report Allerte Scorte" : "📦 Inventario Prodotti";
+
+  container.innerHTML = `
+    <div class="report-box">
+      <div class="report-header-block">
+        <div>
+          <div class="report-title-main">${titolo}</div>
+          <div class="report-meta">Generato il ${ora} · ${lista.length} prodotti</div>
+        </div>
+        <div class="report-stats-inline">
+          <div class="rsi"><div class="rsi-val" style="color:var(--success)">${ok}</div><div class="rsi-lbl">OK</div></div>
+          <div class="rsi"><div class="rsi-val" style="color:var(--accent2)">${bassi}</div><div class="rsi-lbl">Bassi</div></div>
+          <div class="rsi"><div class="rsi-val" style="color:var(--danger)">${critici}</div><div class="rsi-lbl">Critici</div></div>
+        </div>
+      </div>
+      <div class="report-table-wrap">
+        <table class="report-table">
+          <thead><tr><th>Nome</th><th>Categoria</th><th>Qtà attuale</th><th>Scorta min.</th><th>Unità</th><th>Stato</th><th>Note</th></tr></thead>
+          <tbody>
+            ${lista.length === 0
+              ? `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text3)">Nessun prodotto trovato con i filtri selezionati</td></tr>`
+              : lista.map(p => {
+                  const s = getStatoProdotto(p);
+                  return `<tr>
+                    <td><strong>${p["Nome"]}</strong></td>
+                    <td><span class="cat-badge">${p["Categoria"]}</span></td>
+                    <td><span class="qty-cell ${s}" style="font-family:'Syne',sans-serif;font-weight:700">${p["Quantità"]}</span></td>
+                    <td style="color:var(--text3)">${p["Scorta Minima"]}</td>
+                    <td style="color:var(--text2)">${p["Unità"] || "pz"}</td>
+                    <td><span class="stato-badge ${s}">${statoLabel(s)}</span></td>
+                    <td style="color:var(--text2);font-size:12px">${p["Note"] || "—"}</td>
+                  </tr>`;
+                }).join("")
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function stampaReport() {
+  window.print();
+}
+
+// ══════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════
+function toast(msg, tipo = "ok") {
+  const wrap = document.getElementById("toastWrap");
+  const el = document.createElement("div");
+  el.className = "toast " + tipo;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+</script>
+</body>
+</html>
